@@ -90,9 +90,9 @@ class TradingAgent(FinancialAgent):
     # We may want a separate mark to market function (to use anytime) eventually.
     cash = self.markToMarket(self.holdings)
 
-    self.logEvent('ENDING_CASH', self.dollarize(cash))
+    self.logEvent('ENDING_CASH', cash)
     print ("Final holdings for {}: {}.  Marked to market: {}".format(self.name, self.fmtHoldings(self.holdings),
-                                                                     self.dollarize(cash)), override=True)
+                                                                     cash), override=True)
     
     # TODO: Record final results for presentation/debugging.  This is probably bad.
     mytype = str(type(self)).split('.')[-1].split("'")[0]
@@ -335,7 +335,7 @@ class TradingAgent(FinancialAgent):
 
   # Handles QUERY_LAST_TRADE messages from an exchange agent.
   def queryLastTrade (self, symbol, price):
-    self.last_trade[symbol] = int(round(price * 100))
+    self.last_trade[symbol] = price
 
     print ("Received last trade price of {} for {}.".format(self.last_trade[symbol], symbol))
 
@@ -354,10 +354,10 @@ class TradingAgent(FinancialAgent):
     self.known_bids[symbol] = bids
     self.known_asks[symbol] = asks
 
-    if bids: best_bid, best_bid_qty = (self.dollarize(bids[0][0]), bids[0][1])
+    if bids: best_bid, best_bid_qty = (bids[0][0], bids[0][1])
     else: best_bid, best_bid_qty = ('No bids', 0)
 
-    if asks: best_ask, best_ask_qty = (self.dollarize(asks[0][0]), asks[0][1])
+    if asks: best_ask, best_ask_qty = (asks[0][0], asks[0][1])
     else: best_ask, best_ask_qty = ('No asks', 0)
 
     print ("Received spread of {} @ {} / {} @ {} for {}".format(best_bid_qty, best_bid, best_ask_qty, best_ask, symbol))
@@ -429,9 +429,9 @@ class TradingAgent(FinancialAgent):
       cash += value
 
       self.logEvent('MARK_TO_MARKET', "{} {} @ {} == {}".format(shares, symbol,
-                    self.dollarize(self.last_trade[symbol]), self.dollarize(value)))
+                    self.last_trade[symbol], value))
 
-    self.logEvent('MARKED_TO_MARKET', self.dollarize(cash))
+    self.logEvent('MARKED_TO_MARKET', cash)
 
     return cash
 
@@ -452,7 +452,7 @@ class TradingAgent(FinancialAgent):
       h += "{}: {}, ".format(k,v)
 
     # There must always be a CASH entry.
-    h += "{}: {}".format('CASH', self.dollarize(holdings['CASH']))
+    h += "{}: {}".format('CASH', holdings['CASH'])
     h = '{ ' + h + ' }'
     return h
 

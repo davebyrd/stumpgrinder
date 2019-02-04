@@ -249,7 +249,7 @@ class Kernel:
     for a in self.meanResultByAgentType:
       value = self.meanResultByAgentType[a]
       count = self.agentCountByType[a]
-      print ("{}: ${:0.2f}".format(a, (value / 100) / count), override=True)
+      print ("{}: {:d}".format(a, int(round(value / count))), override=True)
 
     print ("Simulation ending!", override=True)
 

@@ -68,17 +68,19 @@ class ExchangeAgent(FinancialAgent):
       book = self.order_books[symbol]
 
       # Log full depth quotes (price, volume) from this order book at some pre-determined frequency.
-      if False:
-      #if book.book_log:
+      if book.book_log:
 
         ### THE FAST WAY
 
         # This must already be sorted by time because it was a list of order book snapshots and time
-        # only increases in our simulation.
+        # only increases in our simulation.  BUT it can have duplicates if multiple orders happen
+        # in the same nanosecond.  (This particularly happens if using nanoseconds as the discrete
+        # but fine-grained unit for more theoretic studies.)
         dfLog = pd.DataFrame(book.book_log)
         dfLog.set_index('QuoteTime', inplace=True)
 
         if True:
+          dfLog = dfLog[~dfLog.index.duplicated(keep='last')]
           dfLog.sort_index(inplace=True)
           dfLog = dfLog.resample(self.book_freq).ffill()
           dfLog.sort_index(inplace=True)

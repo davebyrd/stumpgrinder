@@ -86,12 +86,12 @@ class OrderBook:
       # Now that we are done executing or accepting this order, log the new best bid and ask.
       if self.bids:
         self.owner.logEvent('BEST_BID', "{},{},{}".format(self.symbol,
-                                  dollarize(self.bids[0][0].limit_price),
+                                  self.bids[0][0].limit_price,
                                   sum([o.quantity for o in self.bids[0]])))
 
       if self.asks:
         self.owner.logEvent('BEST_ASK', "{},{},{}".format(self.symbol,
-                                dollarize(self.asks[0][0].limit_price),
+                                self.asks[0][0].limit_price,
                                 sum([o.quantity for o in self.asks[0]])))
 
       # Also log the last trade (total share quantity, average share price).
@@ -99,7 +99,7 @@ class OrderBook:
         trade_qty = 0
         trade_price = 0
         for q, p in executed:
-          print ("Executed: {} @ {}".format(q, dollarize(p)))
+          print ("Executed: {} @ {}".format(q, p))
           trade_qty += q
           trade_price += (p*q)
 
@@ -332,17 +332,17 @@ class OrderBook:
     # Show the total volume at each price.  If silent is True, return the accumulated string and print nothing.
 
     book = "{} order book as of {}\n".format(self.symbol, self.owner.currentTime)
-    book += "Last trades: simulated {:0.2f}, historical {:0.2f}\n".format(self.last_trade,
-           self.owner.oracle.observePrice(self.symbol, self.owner.currentTime, sigma_n = 0) / 100)
+    book += "Last trades: simulated {:d}, historical {:d}\n".format(self.last_trade,
+           self.owner.oracle.observePrice(self.symbol, self.owner.currentTime, sigma_n = 0))
 
     book += "{:10s}{:10s}{:10s}\n".format('BID','PRICE','ASK')
     book += "{:10s}{:10s}{:10s}\n".format('---','-----','---')
 
     for quote, volume in self.getInsideAsks()[-1::-1]:
-      book += "{:10s}{:10s}{:10s}\n".format("", "{:0.2f}".format(quote/100), "{:d}".format(volume))
+      book += "{:10s}{:10s}{:10s}\n".format("", "{:d}".format(quote), "{:d}".format(volume))
 
     for quote, volume in self.getInsideBids():
-      book += "{:10s}{:10s}{:10s}\n".format("{:d}".format(volume), "{:0.2f}".format(quote/100), "")
+      book += "{:10s}{:10s}{:10s}\n".format("{:d}".format(volume), "{:d}".format(quote), "")
 
     if silent: return book
 

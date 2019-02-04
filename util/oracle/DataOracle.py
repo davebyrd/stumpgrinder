@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import os, random, sys
 
+from math import sqrt
 from util.util import print
 
 from joblib import Memory
@@ -117,15 +118,15 @@ class DataOracle:
   # currentTime must be of type pd.Timestamp.  Only the Exchange or other privileged
   # agents should use noisy=False.
   #
-  # NOTE: theta_n is the observation variance, NOT STANDARD DEVIATION.
-  def observePrice(self, symbol, currentTime, theta_n = 0.0001):
+  # NOTE: sigma_n is the observation variance, NOT STANDARD DEVIATION.
+  def observePrice(self, symbol, currentTime, sigma_n = 0.0001):
     last_trade_price = self.getLatestTrade(symbol, currentTime)
 
     # Noisy belief is a normal distribution with stdev around 1% of the last trade price.
-    if noiseStd == 0:
+    if sigma_n == 0:
       belief = float(last_trade_price)
     else:
-      belief = np.random.normal(loc=last_trade_price, scale=last_trade_price * sqrt(theta_n))
+      belief = np.random.normal(loc=last_trade_price, scale=last_trade_price * sqrt(sigma_n))
 
     print ("Oracle: giving client value observation {:0.2f}".format(belief))
 

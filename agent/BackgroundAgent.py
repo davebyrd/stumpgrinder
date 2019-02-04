@@ -8,11 +8,11 @@ import sys
 
 class BackgroundAgent(TradingAgent):
 
-  def __init__(self, id, name, symbol, startingCash, noiseStd, arb_last_trade, freq, trade_vol, offset_unit):
+  def __init__(self, id, name, symbol, startingCash, sigma_n, arb_last_trade, freq, trade_vol, offset_unit):
     # Base class init.
     super().__init__(id, name, startingCash)
 
-    self.noise_std = noiseStd
+    self.sigma_n = sigma_n
 
     self.symbol = symbol
     self.trading = False
@@ -243,10 +243,10 @@ class BackgroundAgent(TradingAgent):
 
     # Get current value belief for relevant stock (observation is noisy).  Beliefs
     # can change even when (unknown) real historical stock price has not changed.
-    # noiseStd is the std of gaussian observation noise as a proportion of the
-    # current stock price.  (e.g. if stock trades at 100, noiseStd=0.01 will
+    # sigma_n is the variance of gaussian observation noise as a proportion of the
+    # current stock price.  (e.g. if stock trades at 100, sigma_n=0.01 will
     # select from a normal(mean=100,std=1) distribution.
-    value_observation = self.oracle.observePrice(self.symbol, self.currentTime, noiseStd=self.noise_std)
+    value_observation = self.oracle.observePrice(self.symbol, self.currentTime, sigma_n=self.sigma_n)
 
     # TESTING: value_belief is only allowed to change at a certain rate from the prior
     # belief, to keep some kind of consistency and make "beliefs" mean something.
@@ -372,7 +372,7 @@ class BackgroundAgent(TradingAgent):
 
 
   def getWakeFrequency (self):
-    retur pd.Timedelta(np.random.randint(low = 0, high = pd.Timedelta(self.freq) / np.timedelta64(1, 'ns')), unit='ns')
+    return pd.Timedelta(np.random.randint(low = 0, high = pd.Timedelta(self.freq) / np.timedelta64(1, 'ns')), unit='ns')
 
   # Parent class defines:
   #def placeLimitOrder (self, symbol, quantity, is_buy_order, limit_price):
