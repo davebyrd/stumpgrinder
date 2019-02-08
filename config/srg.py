@@ -1,5 +1,6 @@
 from Kernel import Kernel
 from agent.ExchangeAgent import ExchangeAgent
+from agent.HeuristicBeliefLearningAgent import HeuristicBeliefLearningAgent
 from agent.ZeroIntelligenceAgent import ZeroIntelligenceAgent
 from util.order import LimitOrder
 from util.oracle.MeanRevertingOracle import MeanRevertingOracle
@@ -16,6 +17,8 @@ import sys
 import argparse
 
 parser = argparse.ArgumentParser(description='Detailed options for momentum config.')
+parser.add_argument('-b', '--book_freq', default='10N',
+                    help='Frequency at which to archive order book for visualization')
 parser.add_argument('-c', '--config', required=True,
                     help='Name of config file to execute')
 parser.add_argument('-l', '--log_dir', default=None,
@@ -41,6 +44,7 @@ if args.config_help:
 # Not relevant for SRG config, but one is required.
 historical_date = pd.to_datetime('2014-01-28')
 log_dir = args.log_dir
+book_freq = args.book_freq if args.book_freq.lower() != 'none' else None
 
 # Observation noise variance for zero intelligence agents.
 sigma_n = args.obs_noise
@@ -63,6 +67,7 @@ LimitOrder.silent_mode = not args.verbose
 
 
 print ("Silent mode: {}".format(util.silent_mode))
+print ("Book freq: {}".format(book_freq))
 print ("ZeroIntelligenceAgent noise: {:0.4f}".format(sigma_n))
 print ("Shock variance: {:0.4f}".format(sigma_s))
 print ("Configuration seed: {}\n".format(seed))
@@ -110,16 +115,27 @@ symbols = { 'IBM' : { 'r_bar' : 100000, 'kappa' : 0.05, 'sigma_s' : sigma_s } }
 
 
 ### Configure some zero intelligence agents.
-num_agents = 65
+num_agents = 100
 
 # Cash in this simulator is always in CENTS.
 starting_cash = 10000000
+
+agent_count = 0
 
 # Here are the zero intelligence agents.
 symbol = 'IBM'
 s = symbols[symbol]
 agents = [ ZeroIntelligenceAgent(i, "ZI Agent {}".format(i), symbol, starting_cash, sigma_n=sigma_n, r_bar=s['r_bar'], kappa=s['kappa'], sigma_s=s['sigma_s'], q_max=10, sigma_pv=5000000, R_min=250, R_max=500, eta=0.8, lambda_a=0.005) for i in range(0,num_agents) ]
 agent_types = ["ZeroIntelligenceAgent" for i in range(num_agents)]
+agent_count = num_agents
+
+
+# Here are the heuristic belief learning agents.
+num_hbl_agents = 10
+agents.extend([ HeuristicBeliefLearningAgent(i, "HBL Agent {}".format(i), symbol, starting_cash, sigma_n=sigma_n, r_bar=s['r_bar'], kappa=s['kappa'], sigma_s=s['sigma_s'], q_max=10, sigma_pv=5000000, R_min=250, R_max=500, eta=0.8, lambda_a=0.005, L=8) for i in range(agent_count, agent_count + num_hbl_agents) ])
+agent_types.extend(["HeuristicBeliefLearningAgent" for i in range(num_hbl_agents)])
+agent_count += num_hbl_agents
+
 
 
 ### Configure an exchange agent.
@@ -132,9 +148,10 @@ mkt_close = midnight + pd.to_timedelta('09:30:00.00001')
 
 
 num_exchanges = 1
-agents.extend([ ExchangeAgent(i, "Exchange Agent {}".format(i), mkt_open, mkt_close, [s for s in symbols], book_freq='10N', pipeline_delay = 0, computation_delay = 0)
-                for i in range(num_agents, num_agents + num_exchanges) ])
+agents.extend([ ExchangeAgent(i, "Exchange Agent {}".format(i), mkt_open, mkt_close, [s for s in symbols], book_freq=book_freq, pipeline_delay = 0, computation_delay = 0, stream_history = 10)
+                for i in range(agent_count, agent_count + num_exchanges) ])
 agent_types.extend(["ExchangeAgent" for i in range(num_exchanges)])
+agent_count += num_exchanges
 
 
 

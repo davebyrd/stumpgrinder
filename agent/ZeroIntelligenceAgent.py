@@ -65,6 +65,8 @@ class ZeroIntelligenceAgent(TradingAgent):
     # Parent class handles discovery of exchange times and market_open wakeup call.
     super().wakeup(currentTime)
 
+    self.state = 'INACTIVE'
+
     if not self.mkt_open or not self.mkt_close:
       # TradingAgent handles discovery of exchange times.
       return
@@ -119,16 +121,21 @@ class ZeroIntelligenceAgent(TradingAgent):
 
     # In order to use the SRG "strategic threshold" parameter (eta), the ZI agent needs the current
     # spread (inside bid/ask quote).  It would not otherwise need any trade/quote information.
-    self.getCurrentSpread(self.symbol)
-    self.state = 'AWAITING_SPREAD'
+    # If the calling agent is a subclass, don't initiate the strategy section of wakeup(), as it
+    # may want to do something different.
+    if type(self) == ZeroIntelligenceAgent:
+      self.getCurrentSpread(self.symbol)
+      self.state = 'AWAITING_SPREAD'
+    else:
+      self.state = 'ACTIVE'
 
 
+  def updateEstimates (self):
+    # Called by an SRG-type background agent that wishes to obtain a new fundamental observation,
+    # update its internal estimation parameters, and compute a new total valuation for the
+    # action it is considering.
 
-  def placeOrder (self):
-    # Called when it is time for the agent to determine a limit price and place an order.
-
-
-    # The ZI agent obtains a new noisy observation of the current fundamental value
+    # The agent obtains a new noisy observation of the current fundamental value
     # and uses this to update its internal estimates in a Bayesian manner.
     obs_t = self.oracle.observePrice(self.symbol, self.currentTime, sigma_n = self.sigma_n)
 
@@ -140,13 +147,13 @@ class ZeroIntelligenceAgent(TradingAgent):
 
     if q >= self.q_max:
       buy = False
-      print ("Long holdings limit: ZI will SELL")
+      print ("Long holdings limit: agent will SELL")
     elif q <= -self.q_max:
       buy = True
-      print ("Short holdings limit: ZI will BUY")
+      print ("Short holdings limit: agent will BUY")
     else:
       buy = bool(np.random.randint(0,2))
-      print ("Coin flip: ZI agent will {}".format("BUY" if buy else "SELL"))
+      print ("Coin flip: agent will {}".format("BUY" if buy else "SELL"))
 
 
     # Update internal estimates of the current fundamental value and our error of same.
@@ -202,6 +209,18 @@ class ZeroIntelligenceAgent(TradingAgent):
     print ("{} total unit valuation is {} (theta = {})".format(self.name, v, theta))
 
 
+    # Return values needed to implement strategy and select limit price.
+    return v, buy
+
+
+
+  def placeOrder (self):
+    # Called when it is time for the agent to determine a limit price and place an order.
+    # updateEstimates() returns the agent's current total valuation for the share it
+    # is considering to trade and whether it will buy or sell that share.
+    v, buy = self.updateEstimates()
+
+
     # Select a requested surplus for this trade.
     R = np.random.randint(self.R_min, self.R_max+1)
 
@@ -215,11 +234,20 @@ class ZeroIntelligenceAgent(TradingAgent):
     bid, bid_vol, ask, ask_vol = self.getKnownBidAsk(self.symbol)
     if buy and ask_vol > 0:
       R_ask = v - ask
-      if R_ask >= (self.eta * R): p = ask
+      if R_ask >= (self.eta * R):
+        print ("{} desired R = {}, but took R = {} at ask = {} due to eta".format(self.name, R, R_ask, ask))
+        p = ask
+      else:
+        print ("{} demands R = {}, limit price {}".format(self.name, R, p))
     elif (not buy) and bid_vol > 0:
       R_bid = bid - v
-      if R_bid >= (self.eta * R): p = bid
+      if R_bid >= (self.eta * R):
+        print ("{} desired R = {}, but took R = {} at bid = {} due to eta".format(self.name, R, R_bid, bid))
+        p = bid
+      else:
+        print ("{} demands R = {}, limit price {}".format(self.name, R, p))
       
+
 
     # Place the order.
     self.placeLimitOrder(self.symbol, 1, buy, p)

@@ -26,6 +26,9 @@ class OrderBook:
     self.book_log = []
     self.quotes_seen = set()
 
+    # Create an order history for the exchange to report to certain agent types.
+    self.history = [{}]
+
 
   def handleLimitOrder (self, order):
     # Matches a limit order or adds it to the order book.  Handles partial matches piecewise,
@@ -40,6 +43,12 @@ class OrderBook:
       print ("{} order discarded.  Quantity ({}) must be a positive integer.".format(order.symbol, order.quantity))
       return
 
+    # Add the order under index 0 of history: orders since the most recent trade.
+    self.history[0][order.order_id] = { 'entry_time' : self.owner.currentTime,
+                                        'quantity' : order.quantity, 'is_buy_order' : order.is_buy_order,
+                                        'limit_price' : order.limit_price, 'transactions' : [],
+                                        'cancellations' : [] }
+    
     matching = True
 
     self.prettyPrint()
@@ -181,6 +190,27 @@ class OrderBook:
           # was being "advertised" in the order book.
           matched_order.fill_price = matched_order.limit_price
 
+          # Record the transaction in the order history and push the indices
+          # out one, possibly truncating to the maximum history length.
+
+          # The incoming order is guaranteed to exist under index 0.
+          self.history[0][order.order_id]['transactions'].append( (self.owner.currentTime, order.quantity) )
+
+          # The pre-existing order may or may not still be in the recent history.
+          for idx, orders in enumerate(self.history):
+            if matched_order.order_id not in orders: continue
+
+            # Found the matched order in history.  Update it with this transaction.
+            self.history[idx][matched_order.order_id]['transactions'].append(
+                                                     (self.owner.currentTime, matched_order.quantity) )
+
+          # Transaction occurred, so advance indices.
+          self.history.insert(0, {})
+
+          # Truncate history to required length.
+          self.history = self.history[:self.owner.stream_history+1]
+
+
           # Return (only the executed portion of) the matched order.
           return matched_order
 
@@ -260,6 +290,15 @@ class OrderBook:
           if order.order_id == co.order_id:
             # Cancel this order.
             cancelled_order = book[i].pop(ci)
+
+            # Record cancellation of the order if it is still present in the recent history structure.
+            for idx, orders in enumerate(self.history):
+              if cancelled_order.order_id not in orders: continue
+
+              # Found the cancelled order in history.  Update it with the cancelation.
+              self.history[idx][cancelled_order.order_id]['cancellations'].append(
+                                                         (self.owner.currentTime, cancelled_order.quantity) )
+
 
             # If the cancelled price now has no orders, remove it completely.
             if not book[i]:

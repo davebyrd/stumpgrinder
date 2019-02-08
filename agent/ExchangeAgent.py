@@ -16,7 +16,7 @@ from copy import deepcopy
 class ExchangeAgent(FinancialAgent):
 
   def __init__(self, id, name, mkt_open, mkt_close, symbols, book_freq='S', pipeline_delay = 40000,
-               computation_delay = 1):
+               computation_delay = 1, stream_history = 0):
 
     super().__init__(id, name)
 
@@ -30,6 +30,10 @@ class ExchangeAgent(FinancialAgent):
     # Right now, only the exchange agent has a parallel processing pipeline delay.
     self.pipeline_delay = pipeline_delay
     self.computation_delay = computation_delay
+
+    # The exchange maintains an order stream of all orders leading to the last L trades
+    # to support certain agents from the auction literature (GD, HBL, etc).
+    self.stream_history = stream_history
 
     # Create an order book for each symbol.
     self.order_books = {}
@@ -61,8 +65,8 @@ class ExchangeAgent(FinancialAgent):
   def kernelTerminating (self):
     super().kernelTerminating()
 
-    #TMP: no order book archive, for speed
-    #return
+    # Skip order book dump if requested.
+    if self.book_freq is None: return
 
     for symbol in self.order_books:
       book = self.order_books[symbol]
@@ -168,7 +172,7 @@ class ExchangeAgent(FinancialAgent):
     if currentTime > self.mkt_close:
       # Most messages after close will receive a 'MKT_CLOSED' message in response.  A few things
       # might still be processed, like requests for final trade prices or such.
-      if 'ORDER' in msg.body['msg']:
+      if msg.body['msg'] in ['LIMIT_ORDER', 'CANCEL_ORDER']:
         print ("{} received {}: {}".format(self.name, msg.body['msg'], msg.body['order']))
         self.sendMessage(msg.body['sender'], Message({ "msg": "MKT_CLOSED" }))
 
@@ -186,7 +190,7 @@ class ExchangeAgent(FinancialAgent):
         return
 
     # Log all received messages.
-    if 'ORDER' in msg.body['msg']:
+    if msg.body['msg'] in ['LIMIT_ORDER', 'CANCEL_ORDER']:
       self.logEvent(msg.body['msg'], msg.body['order'])
     else:
       self.logEvent(msg.body['msg'], msg.body['sender'])
@@ -230,6 +234,21 @@ class ExchangeAgent(FinancialAgent):
              "bids": self.order_books[symbol].getInsideBids(depth), "asks": self.order_books[symbol].getInsideAsks(depth),
              "data": self.order_books[symbol].last_trade, "mkt_closed": True if currentTime > self.mkt_close else False,
              "book": self.order_books[symbol].prettyPrint(silent=True) }))
+    elif msg.body['msg'] == "QUERY_ORDER_STREAM":
+      symbol = msg.body['symbol']
+      length = msg.body['length']
+
+      if symbol not in self.order_books:
+        print ("Order stream request discarded.  Unknown symbol: {}".format(symbol))
+      else:
+        print ("{} received QUERY_ORDER_STREAM ({}:{}) request from agent {}".format(self.name, symbol, length, msg.body['sender']))
+      
+      # We return indices [1:length] inclusive because the agent will want "orders leading up to the last
+      # L trades", and the items under index 0 are more recent than the last trade.
+      self.sendMessage(msg.body['sender'], Message({ "msg": "QUERY_ORDER_STREAM", "symbol": symbol, "length": length,
+           "mkt_closed": True if currentTime > self.mkt_close else False,
+           "orders": self.order_books[symbol].history[1:length+1]
+           }))
     elif msg.body['msg'] == "LIMIT_ORDER":
       order = msg.body['order']
       print ("{} received LIMIT_ORDER: {}".format(self.name, order))

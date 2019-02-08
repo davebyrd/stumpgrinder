@@ -50,6 +50,8 @@ class TradingAgent(FinancialAgent):
     self.known_bids = {}
     self.known_asks = {}
 
+    self.stream_history = {}
+
     # For special logging at the first moment the simulator kernel begins
     # running (which is well after agent init), it is useful to keep a simple
     # boolean flag.
@@ -181,6 +183,12 @@ class TradingAgent(FinancialAgent):
 
       self.querySpread(msg.body['symbol'], msg.body['data'], msg.body['bids'], msg.body['asks'], msg.body['book'])
 
+    elif msg.body['msg'] == 'QUERY_ORDER_STREAM':
+      # Call the queryOrderStream method, which subclasses may extend.
+      if msg.body['mkt_closed']: self.mkt_closed = True
+
+      self.queryOrderStream(msg.body['symbol'], msg.body['orders'])
+
 
     # Now do we know the market hours?
     have_mkt_hours = self.mkt_open is not None and self.mkt_close is not None
@@ -208,6 +216,11 @@ class TradingAgent(FinancialAgent):
   def getCurrentSpread (self, symbol, depth=1):
     self.sendMessage(self.exchangeID, Message({ "msg" : "QUERY_SPREAD", "sender": self.id,
                                                 "symbol" : symbol, "depth" : depth })) 
+
+  # Used by any Trading Agent subclass to query the recent order stream for a symbol.
+  def getOrderStream (self, symbol, length=1):
+    self.sendMessage(self.exchangeID, Message({ "msg" : "QUERY_ORDER_STREAM", "sender": self.id,
+                                                "symbol" : symbol, "length" : length }))
 
 
   # Used by any Trading Agent subclass to place a limit order.  Parameters expect:
@@ -367,6 +380,15 @@ class TradingAgent(FinancialAgent):
     self.logEvent("IMBALANCE", [sum([x[1] for x in bids]), sum([x[1] for x in asks])])
 
     self.book = book
+
+
+  # Handles QUERY_ORDER_STREAM messages from an exchange agent.
+  def queryOrderStream (self, symbol, orders):
+    # It is up to the requesting agent to do something with the data, which is a list of dictionaries keyed
+    # by order id.  The list index is 0 for orders since the most recent trade, 1 for orders that led up to
+    # the most recent trade, and so on.  Agents are not given index 0 (orders more recent than the last
+    # trade).
+    self.stream_history[self.symbol] = orders
 
 
   # Utility functions that perform calculations from available knowledge, but implement no
