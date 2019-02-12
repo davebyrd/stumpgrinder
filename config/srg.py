@@ -96,7 +96,7 @@ kernelStopTime = midnight + pd.to_timedelta('17:00:00')
 # This will configure the kernel with a default computation delay
 # (time penalty) for each agent's wakeup and recvMsg.  An agent
 # can change this at any time for itself.  (nanoseconds)
-defaultComputationDelay = 1        # one nanosecond
+defaultComputationDelay = 0        # no delay for SRG config
 
 
 # IMPORTANT NOTE CONCERNING AGENT IDS: the id passed to each agent must:
